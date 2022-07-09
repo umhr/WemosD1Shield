@@ -75,12 +75,11 @@ ESP8266WebServer server(80);
 #if defined(ESP32)
 WebServer server(80);
 #undef HOSTNAME
-#define HOSTNAME "esp32"
+#define HOSTNAME "esp5"
 #endif  // ESP32
 
-#define RED_out 25
-#define LED_out 26
-
+#define LED1 26
+#define LED2 25
 
 const uint16_t kIrLed = 4;  // ESP GPIO pin to use. Recommended: 4 (D2).
 IRsend irsend(kIrLed);  // Set the GPIO to be used to sending the message.
@@ -89,37 +88,30 @@ int heartbeatPin = 27; // The Arduino will send the heartbeat at this output pin
 uint16_t heartbeatCount = 0;
 void heartbeat() {
   if(heartbeatCount%5000 == 0){
-    //Serial.print(WiFi.status());
-    //Serial.print(", ");
-    //Serial.print(WiFi.localIP());
-    //Serial.print(", ");
     Serial.print("HB = ");
     Serial.println(heartbeatCount);
     dhtloop();
     co2loop();
   }
-  //Serial.println("Heartbeat sent!");
   if(heartbeatCount%1000 == 0 && (WiFi.status() != WL_CONNECTED || int(WiFi.localIP()) == 0)){
-    //Serial.println("block");
     heartbeatCount = 1000;
   }
   if(heartbeatCount == 10){
     pinMode(heartbeatPin, OUTPUT);
     digitalWrite(heartbeatPin,LOW);
-    //Serial.println("in");
+    digitalWrite(LED1, HIGH);
   }else if(heartbeatCount == 1000){
     digitalWrite(heartbeatPin, HIGH);
     pinMode(heartbeatPin, INPUT);
-    //Serial.println("out");
+    digitalWrite(LED1, LOW);
   //}else if(heartbeatCount > 65500){
     //heartbeatCount = 0;
   }
   heartbeatCount ++;
-  //delay(100); // Should be enough time to pulse to get the 555 to recognize it.
 }
 
 void handleRoot() {
-    digitalWrite(RED_out, HIGH);
+  digitalWrite(LED2, HIGH);
   server.send(200, "text/html",
               "<html>" \
                 "<head><title>" HOSTNAME " Index </title>" \
@@ -157,7 +149,7 @@ void handleRoot() {
                   "</script>"\
                 "</body>" \
               "</html>");
-    digitalWrite(RED_out, LOW);
+    digitalWrite(LED2, LOW);
 }
 
 void handleIr() {
@@ -171,7 +163,6 @@ void handleIr() {
   }
   Serial.println(getQuery("code"));
   server.send(200, "text/plain", "ok");
-  //handleRoot();
 }
 
 String getQuery(String key) {
@@ -219,6 +210,8 @@ float temperature;
 int co2;
 
 void setup(void) {
+  pinMode(LED2, OUTPUT);
+  pinMode(LED1, OUTPUT);
   irsend.begin();
 
   Serial.begin(115200);
@@ -230,6 +223,12 @@ void setup(void) {
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
+    digitalWrite(LED1, LOW);
+    digitalWrite(LED2, LOW);
+    delay(100);
+    digitalWrite(LED1, HIGH);
+    digitalWrite(LED2, HIGH);
+    delay(100);
   }
   Serial.println("");
   Serial.print("Connected to ");
@@ -254,7 +253,7 @@ void setup(void) {
     server.send(200, "text/plain", "this works as well");
   });
   server.on("/data.json", [](){
-    digitalWrite(LED_out, HIGH);
+    digitalWrite(LED2, HIGH);
     indexnum ++;
     server.sendHeader("Access-Control-Allow-Origin", "*");
     String str = "{";
@@ -264,7 +263,7 @@ void setup(void) {
     str += ", \"co2\":" + String(co2);
     str += "}";
     server.send(200, "application/json", str);
-    digitalWrite(LED_out, LOW);
+    digitalWrite(LED2, LOW);
   });
 
   server.onNotFound(handleNotFound);
@@ -274,8 +273,8 @@ void setup(void) {
   dhtsetup();
   pinMode(12, OUTPUT);
   pinMode(13, OUTPUT);
-  pinMode(RED_out, OUTPUT);
-  pinMode(LED_out, OUTPUT);
+  digitalWrite(LED1, LOW);
+  digitalWrite(LED2, LOW);
 }
 
 void dhtsetup() {
@@ -312,9 +311,6 @@ void dhtsetup() {
 }
 
 void dhtloop() {
-  // Delay between measurements.
-  //delay(delayMS);
-  // Get temperature event and print its value.
   sensors_event_t event;
   dht.temperature().getEvent(&event);
   if (isnan(event.temperature)) {
@@ -326,7 +322,6 @@ void dhtloop() {
     Serial.println(F("°C"));
     temperature = event.temperature;
   }
-  // Get humidity event and print its value.
   dht.humidity().getEvent(&event);
   if (isnan(event.relative_humidity)) {
     Serial.println(F("Error reading humidity!"));
@@ -340,7 +335,7 @@ void dhtloop() {
 }
 
 void co2loop() {
-    byte cmd[9] = {0xFF,0x01,0x86,0x00,0x00,0x00,0x00,0x00,0x79};
+  byte cmd[9] = {0xFF,0x01,0x86,0x00,0x00,0x00,0x00,0x00,0x79};
   unsigned char response[9]; // for answer
   Serial2.write(cmd, 9); //request PPM CO2
   Serial2.readBytes(response, 9);
@@ -359,7 +354,6 @@ void co2loop() {
 }
 
 void loop(void) {
-  //Serial.println(ans) ;             // 値をパソコン(ＩＤＥ)に送る
 
 #if defined(ESP8266)
   mdns.update();
